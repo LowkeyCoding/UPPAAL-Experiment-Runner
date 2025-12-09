@@ -1945,7 +1945,6 @@ return result"""
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
         ax.set_title(title)
-        ax.grid(True, alpha=0.3)
         
         if len(series_data) > 1:
             ax.legend()
@@ -1970,7 +1969,6 @@ return result"""
             ax.set_title(title)
             ax.set_xlabel(x_label)
             ax.set_ylabel(y_label)
-            ax.grid(True, alpha=0.3)
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
         except Exception as e:
             self.plot_status.config(text=f"Error creating box plot: {str(e)}")
@@ -1994,7 +1992,6 @@ return result"""
         ax.set_title(title)
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
-        ax.grid(True, alpha=0.3)
     
     def on_closing(self):
         """Handle window closing"""
