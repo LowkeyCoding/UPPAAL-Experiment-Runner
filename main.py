@@ -10,11 +10,11 @@ import numpy as np
 import pickle
 from collections import OrderedDict
 from lxml import etree as xml
-import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+import inspect # Use to get parameterized transformations
 
 import process_model
 
@@ -326,7 +326,7 @@ class UPPAALExperimentRunner:
         ttk.Button(control_frame, text="New", command=self.new_transformation).pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="Save", command=self.save_transformation).pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="Remove", command=self.remove_transformation).pack(side=tk.LEFT, padx=2)
-        ttk.Button(control_frame, text="Execute", command=self.execute_transformation).pack(side=tk.LEFT, padx=2)
+        ttk.Button(control_frame, text="Execute", command=self.execute_current_transformation).pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="Run All", command=self.run_all_transformations).pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="View Result", command=self.view_transform_result).pack(side=tk.LEFT, padx=2)
         
@@ -480,6 +480,8 @@ class UPPAALExperimentRunner:
             self.queries_file = filename
             self.queries_entry.delete(0, tk.END)
             self.queries_entry.insert(0, filename)
+            with open(self.queries_file) as f:
+                self.declarations["Queries File"] = f.read()
     
     def save_experiment_config(self):
         """Save experiment configuration (not data)"""
@@ -541,6 +543,9 @@ class UPPAALExperimentRunner:
             if self.queries_file:
                 self.queries_entry.delete(0, tk.END)
                 self.queries_entry.insert(0, self.queries_file)
+                with open(self.queries_file) as f:
+                    self.declarations["Queries File"] = f.read()
+                self.declaration_combo['values'] = list(self.declarations.keys())
             
             self.merge_variables()
             self.load_variables()
@@ -781,12 +786,17 @@ class UPPAALExperimentRunner:
             return
         
         path = f"//template[declaration and name/text()='{selection}']//declaration"
+        new_text = self.declaration_editor.get(1.0, tk.END).strip()
         if selection == "project":
             path = "declaration"
         elif selection == "System":
             path = "system"
-
-        new_text = self.declaration_editor.get(1.0, tk.END).strip()            
+        elif selection == "Queries File":
+            with open(self.queries_file, "w") as f:
+                f.write(new_text)
+                messagebox.showinfo("Saved", f"Declaration '{selection}' updated")
+            return
+            
         with open(self.model_file, "r") as f:
             model = xml.parse(f)
 
@@ -1024,6 +1034,10 @@ class UPPAALExperimentRunner:
             text.insert(tk.END, f"Variation {var_id}:\n")
             text.insert(tk.END, f"  Label: {data.get('label', 'N/A')}\n")
             text.insert(tk.END, f"  Status: {'SUCCESS' if data.get('success', False) else 'FAILED'}\n\n")
+            data_points = data.get('data_points', [])
+            for data_point in data_points:
+                for trace, data in data_point.items():
+                    text.insert(tk.END,f"{trace} {data}")
         
         text.configure(state='disabled')
         
