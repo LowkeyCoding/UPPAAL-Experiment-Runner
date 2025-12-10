@@ -55,14 +55,13 @@ class SyntaxHighlightingText(scrolledtext.ScrolledText):
                     if end == -1: break
                     self.tag_add('string', f'{line_num}.{start}', f'{line_num}.{end+1}')
                     start = end + 1
-            
             line_num += 1
 
 class UPPAALExperimentRunner:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("UPPAAL Experiment Suite")
+        self.root.title("UPPAAL Experiment Runner")
         
         # Data storage
         self.model_file = None
@@ -135,7 +134,7 @@ class UPPAALExperimentRunner:
         
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
 
-    def on_tab_changed(self, event):
+    def on_tab_changed(self, _):
         """Handle tab change event"""
         current_tab = self.notebook.tab(self.notebook.select(), "text")
         if current_tab == "Transform":
@@ -699,7 +698,7 @@ class UPPAALExperimentRunner:
         else:
             messagebox.showwarning("Warning", "No model file selected")
     
-    def on_variable_double_click(self, event):
+    def on_variable_double_click(self, _):
         """Handle double-click on variable to edit"""
         item = self.var_tree.selection()
         if not item: return
@@ -771,7 +770,7 @@ class UPPAALExperimentRunner:
             self.declaration_combo.current(0)
             self.on_declaration_selected(None)
     
-    def on_declaration_selected(self, event):
+    def on_declaration_selected(self, _):
         """Handle declaration selection"""
         selection = self.declaration_var.get()
         if selection in self.declarations:
@@ -1079,16 +1078,8 @@ class UPPAALExperimentRunner:
             messagebox.showwarning("Warning", "Transformation code cannot be empty")
             return
         
-        # Preserve existing data if any
-        old_data = {}
-        if name in self.transformations:
-            old_data = self.transformations[name].get('data', {})
-        
         # Save transformation
-        self.transformations[name] = {
-            'code': code,
-            'data': old_data
-        }
+        self.transformations[name] = code
         
         self.update_transform_list()
         if name in self.transformed_data:
@@ -1114,7 +1105,7 @@ class UPPAALExperimentRunner:
             self.update_data_sources()
             self.transform_status.config(text=f"Transformation '{name}' removed")
     
-    def on_transform_list_select(self, event):
+    def on_transform_list_select(self, _):
         """Handle transformation list selection - update name AND code"""
         selection = self.transform_listbox.curselection()
         if selection:
@@ -1427,7 +1418,7 @@ class UPPAALExperimentRunner:
         dialog.bind('<Return>', lambda e: rename())
         dialog.bind('<Escape>', lambda e: cancel())
     
-    def auto_config_change(self, event=None):
+    def auto_config_change(self, _=None):
         """Handle configuration changes by auto-saving and auto-updating"""
         self.auto_save_plot_config()
         if self.notebook.tab(self.notebook.select(), "text") == "Plot":
@@ -1524,7 +1515,7 @@ class UPPAALExperimentRunner:
             else:
                 self.create_plot_config()
     
-    def on_plot_config_selected(self, event):
+    def on_plot_config_selected(self, _):
         """Handle plot configuration selection"""
         name = self.plot_config_var.get()
         if name in self.plot_configs:
