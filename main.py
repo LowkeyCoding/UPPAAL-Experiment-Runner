@@ -141,6 +141,8 @@ class UPPAALExperimentRunner:
         if current_tab == "Transform":
             if hasattr(self, 'transform_code') and isinstance(self.transform_code, SyntaxHighlightingText):
                 self.transform_code._highlight()
+        elif current_tab == "Plot":
+            self.auto_config_change()
     
     # ==================== MODEL TAB ====================
     
@@ -339,8 +341,6 @@ class UPPAALExperimentRunner:
         self.transform_name_var = tk.StringVar(value="new_transformation")
         self.transform_name_entry = ttk.Entry(name_frame, textvariable=self.transform_name_var, width=30)
         self.transform_name_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        self.plot_ready_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(name_frame, text="Plot-ready format", variable=self.plot_ready_var, command=self.on_plot_ready_changed).pack(side=tk.LEFT, padx=10)
         
         # Code editor with syntax highlighting
         editor_frame = ttk.LabelFrame(right_panel, text="Python Code", padding=10)
@@ -351,9 +351,8 @@ class UPPAALExperimentRunner:
         # Documentation
         doc_frame = ttk.LabelFrame(right_panel, text="Transformation Format", padding=10)
         doc_frame.pack(fill=tk.X, pady=(10, 0))
-        doc_text = """Transformations must return a dictionary where:
-• For standard data: {key: {'x': array, 'y': array, 'label': str}}
-• For plot-ready data: {'series_name': {'x': [1,2,3], 'y': [4,5,6], 'label': 'Series 1'}}"""
+        doc_text = """Transformations set the variable result to a dict on the form:
+• {'series_name': {'x': [1,2,3], 'y': [4,5,6], 'label': 'Series 1'}}"""
         ttk.Label(doc_frame, text=doc_text, justify=tk.LEFT, font=('Segoe UI', 9), foreground='gray').pack(fill=tk.X)
         
         # Status bar
@@ -398,18 +397,18 @@ class UPPAALExperimentRunner:
         self.plot_title_var = tk.StringVar(value="Plot")
         ttk.Entry(title_frame, textvariable=self.plot_title_var, width=40).pack(fill=tk.X, pady=(2, 5))
         self.include_seed_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(title_frame, text="Include seed in title", variable=self.include_seed_var).pack(anchor=tk.W)
+        ttk.Checkbutton(title_frame, text="Include seed in title", variable=self.include_seed_var, command=self.auto_config_change).pack(anchor=tk.W)
         
         # Axis labels
         labels_frame = ttk.LabelFrame(config_frame, text="Axis Labels", padding=10)
         labels_frame.pack(fill=tk.X, pady=(0, 10))
         ttk.Label(labels_frame, text="X-axis Label:").grid(row=0, column=0, sticky=tk.W, pady=2)
         self.x_label_var = tk.StringVar(value="X")
-        ttk.Entry(labels_frame, textvariable=self.x_label_var, width=30).grid(row=0, column=1, padx=5, pady=2, sticky=tk.W)
+        ttk.Entry(labels_frame, textvariable=self.x_label_var, validatecommand=self.auto_config_change, width=30).grid(row=0, column=1, padx=5, pady=2, sticky=tk.W)
         ttk.Label(labels_frame, text="Y-axis Label:").grid(row=1, column=0, sticky=tk.W, pady=2)
         self.y_label_var = tk.StringVar(value="Y")
-        ttk.Entry(labels_frame, textvariable=self.y_label_var, width=30).grid(row=1, column=1, padx=5, pady=2, sticky=tk.W)
-        
+        ttk.Entry(labels_frame, textvariable=self.y_label_var, validatecommand=self.auto_config_change, width=30).grid(row=1, column=1, padx=5, pady=2, sticky=tk.W)
+
         # Data source
         source_frame = ttk.LabelFrame(config_frame, text="Data Source", padding=10)
         source_frame.pack(fill=tk.X, pady=(0, 10))
@@ -425,6 +424,7 @@ class UPPAALExperimentRunner:
         ttk.Label(type_frame, text="Type:").pack(side=tk.LEFT)
         self.plot_type_var = tk.StringVar(value="scatter")
         self.plot_type_combo = ttk.Combobox(type_frame, textvariable=self.plot_type_var, values=["scatter", "line", "bar", "box", "histogram"], state='readonly', width=15)
+        self.plot_type_combo.bind('<<ComboboxSelected>>', self.auto_config_change)
         self.plot_type_combo.pack(side=tk.LEFT, padx=5)
         
         # Series configuration
@@ -527,14 +527,8 @@ class UPPAALExperimentRunner:
             self.transformations = {}
             self.transformed_data = {}
             
-            for name, trans_data in loaded_transformations.items():
-                self.transformations[name] = {
-                    'code': trans_data.get('code', ''),
-                    'plot_ready': trans_data.get('plot_ready', False),
-                    'data': trans_data.get('data', {})
-                }
-                if trans_data.get('data'):
-                    self.transformed_data[name] = trans_data['data']
+            for name, code in loaded_transformations.items():
+                self.transformations[name] = code
             
             self.plot_configs = OrderedDict(config_data.get('plot_configs', {}))
             
@@ -1056,14 +1050,12 @@ class UPPAALExperimentRunner:
         """Create a new transformation"""
         self.transform_name_var.set("new_transformation")
         self.transform_code.delete(1.0, tk.END)
-        self.plot_ready_var.set(False)
         self.transform_status.config(text="New transformation created")
     
     def save_transformation(self):
         """Save current transformation"""
         name = self.transform_name_var.get().strip()
         code = self.transform_code.get(1.0, tk.END).strip()
-        plot_ready = self.plot_ready_var.get()
         
         if not name:
             messagebox.showwarning("Warning", "Please enter a transformation name")
@@ -1081,7 +1073,6 @@ class UPPAALExperimentRunner:
         # Save transformation
         self.transformations[name] = {
             'code': code,
-            'plot_ready': plot_ready,
             'data': old_data
         }
         
@@ -1117,10 +1108,7 @@ class UPPAALExperimentRunner:
             self.transform_name_var.set(name)
             
             if name in self.transformations:
-                trans = self.transformations[name]
-                code = trans.get('code', '')
-                plot_ready = trans.get('plot_ready', False)
-                self.plot_ready_var.set(plot_ready)
+                code = self.transformations[name]
                 self.transform_code.delete(1.0, tk.END)
                 self.transform_code.insert(tk.END, code)
                 
@@ -1166,13 +1154,9 @@ class UPPAALExperimentRunner:
         current_data_source = self.data_source_var.get()
         should_update_plot = False
         
-        for i, (name, trans_data) in enumerate(self.transformations.items()):
+        for i, (name, code) in enumerate(self.transformations.items()):
             try:
-                self.transform_name_var.set(name)
-                code = trans_data['code']
-                plot_ready = trans_data['plot_ready']
-                
-                if self.execute_transformation_silent(name, code, plot_ready):
+                if self.execute_transformation(name, code, silent=True):
                     success_count += 1
                     if name == current_data_source:
                         should_update_plot = True
@@ -1192,68 +1176,24 @@ class UPPAALExperimentRunner:
         
         messagebox.showinfo("Complete", f"Ran {len(self.transformations)} transformations\nSuccess: {success_count}\nFailed: {len(self.transformations) - success_count}")
         self.transform_status.config(text=f"Ran all transformations ({success_count} successful)")
+        
+    def execute_current_transformation(self):
+        name = self.transform_name_var.get().strip()
+        code = self.transform_code.get(1.0, tk.END)
+        self.execute_transformation(name, code)
     
-    def execute_transformation_silent(self, name, code, plot_ready):
-        """Execute transformation without UI updates"""
-        try:
-            safe_globals = {
-                'raw_data': self.raw_data,
-                'results': self.results,
-                'np': np,
-                'math': __import__('math'),
-                'statistics': __import__('statistics'),
-                'json': json,
-                'list': list,
-                'range': range,
-                'dict': dict
-            }
-            
-            exec(code, safe_globals)
-            
-            result = None
-            for var_name in ['result', 'data', 'transformed_data']:
-                if var_name in safe_globals:
-                    result = safe_globals[var_name]
-                    break
-            
-            if result is None:
-                for var_name, var_value in safe_globals.items():
-                    if isinstance(var_value, dict) and var_name not in ['raw_data', 'results']:
-                        result = var_value
-                        break
-            
-            if result is not None:
-                validated_result = self.validate_plot_data(result, plot_ready)
-                if validated_result:
-                    self.transformations[name]['data'] = validated_result
-                    self.transformed_data[name] = validated_result
-                    return True
-                    
-        except Exception as e:
-            print(f"Error executing transformation '{name}': {e}")
-        
-        return False
-        
-    def execute_transformation(self):
+    def execute_transformation(self, name, code,  silent=False):
         """Execute transformation code"""
-        if not self.raw_data:
+        if not self.raw_data and not silent:
             messagebox.showwarning("No Data", "No experiment data available")
             return
         
-        name = self.transform_name_var.get().strip()
-        code = self.transform_code.get(1.0, tk.END)
-        plot_ready = self.plot_ready_var.get()
-        
-        if not name:
+        if not name and not silent:
             messagebox.showwarning("No Name", "Please specify a transformation name")
             return
         
         # Save the transformation first
-        self.transformations[name] = {
-            'code': code,
-            'plot_ready': plot_ready,
-            'data': {}
-        }
+        self.transformations[name] = code
         
         try:
             safe_globals = {
@@ -1269,75 +1209,34 @@ class UPPAALExperimentRunner:
             }
             
             exec(code, safe_globals)
-            
             result = None
-            for var_name in ['result', 'data', 'transformed_data']:
-                if var_name in safe_globals:
-                    result = safe_globals[var_name]
-                    break
-            
-            if result is None:
-                for var_name, var_value in safe_globals.items():
-                    if isinstance(var_value, dict) and var_name not in ['raw_data', 'results']:
-                        result = var_value
-                        break
+            if "result" in safe_globals:
+                result = safe_globals["result"]
             
             if result is not None:
-                validated_result = self.validate_plot_data(result, plot_ready)
-                if validated_result:
-                    self.transformations[name]['data'] = validated_result
-                    self.transformed_data[name] = validated_result
+                self.transformed_data[name] = result
+                if not silent:
                     self.update_transform_list()
                     self.update_data_sources()
-                    self.transform_status.config(text=f"Success: {name} ({len(validated_result)} items)")
-                    
-                    # AUTO-UPDATE PLOT IF THIS IS THE CURRENT DATA SOURCE
-                    if (self.notebook.tab(self.notebook.select(), "text") == "Plot" and 
-                        self.data_source_var.get() == name):
-                        self.auto_update_plot()
+                    self.transform_status.config(text=f"Success: {name} ({len(result)} items)")
                 else:
-                    messagebox.showwarning("Invalid Format", 
-                        "Transformation result must be a dictionary with 'x' and 'y' arrays.\n" +
-                        "Format: {'key': {'x': array, 'y': array, 'label': str}} or\n" +
-                        "        {'series_name': {'x': array, 'y': array, 'label': str}} for plot-ready")
+                    return True
+                
+                # AUTO-UPDATE PLOT IF THIS IS THE CURRENT DATA SOURCE
+                if not silent and (self.notebook.tab(self.notebook.select(), "text") == "Plot" and 
+                    self.data_source_var.get() == name):
+                    self.auto_update_plot()
             else:
-                messagebox.showwarning("No Result", "Transformation did not produce a result")
+                if not silent:
+                    messagebox.showwarning("No Result", "Transformation did not produce a result")
                 
         except Exception as e:
             error_msg = str(e)
             self.transform_status.config(text=f"Error: {error_msg[:50]}...")
-            messagebox.showerror("Execution Error", f"{error_msg}\n\nSee console for details")
+            if not silent:
+                messagebox.showerror("Execution Error", f"{error_msg}\n\nSee console for details")
             traceback.print_exc()
-        
-    def validate_plot_data(self, data, plot_ready=False):
-        """Validate that data is in correct format for plotting"""
-        if not isinstance(data, dict):
-            return None
-        
-        validated = {}
-        
-        if plot_ready:
-            for series_name, series_data in data.items():
-                if isinstance(series_data, dict):
-                    if 'x' in series_data and 'y' in series_data:
-                        validated[series_name] = {
-                            'x': series_data['x'],
-                            'y': series_data['y'],
-                            'label': series_data.get('label', series_name),
-                            'color': series_data.get('color', 'blue')
-                        }
-        else:
-            for key, point_data in data.items():
-                if isinstance(point_data, dict):
-                    if 'x' in point_data and 'y' in point_data:
-                        validated[key] = {
-                            'x': point_data['x'],
-                            'y': point_data['y'],
-                            'label': point_data.get('label', str(key)),
-                            'color': point_data.get('color', 'blue')
-                        }
-        
-        return validated if validated else None
+        return False
     
     def view_transform_result(self):
         """View transformation result"""
@@ -1374,43 +1273,6 @@ class UPPAALExperimentRunner:
                 y_len = len(y_val) if hasattr(y_val, '__len__') else 1
                 label = value.get('label', '')
                 tree.insert('', tk.END, values=(key, x_type, x_len, y_type, y_len, label))
-    
-    def on_plot_ready_changed(self):
-        """Update template when plot-ready checkbox changes"""
-        if self.plot_ready_var.get():
-            template = """# Plot-ready transformation template
-# Return data in format: {'series_name': {'x': array, 'y': array, 'label': str}}
-
-# Example: Create multiple series
-result = {
-    'throughput': {
-        'x': [1, 2, 3, 4, 5],
-        'y': [10, 15, 12, 18, 20],
-        'label': 'Throughput'
-    },
-    'satisfaction': {
-        'x': [1, 2, 3, 4, 5],
-        'y': [0.8, 0.9, 0.7, 0.95, 0.85],
-        'label': 'Formula Satisfaction'
-    }
-}
-
-return result"""
-        else:
-            template = """# Standard transformation template
-# Return data in format: {key: {'x': array, 'y': array, 'label': str}}
-
-result = {}
-for key, data in raw_data.items():
-    result[key] = {
-        'x': data.get('variation_id', 0),
-        'y': data.get('formula_satisfaction', 0),
-        'label': data.get('label', f'Var {key}')
-    }
-
-return result"""
-        self.transform_code.delete(1.0, tk.END)
-        self.transform_code.insert(tk.END, template)
     
     # ==================== PLOT TAB METHODS ====================
     
@@ -1551,7 +1413,7 @@ return result"""
         dialog.bind('<Return>', lambda e: rename())
         dialog.bind('<Escape>', lambda e: cancel())
     
-    def auto_config_change(self):
+    def auto_config_change(self, event=None):
         """Handle configuration changes by auto-saving and auto-updating"""
         self.auto_save_plot_config()
         if self.notebook.tab(self.notebook.select(), "text") == "Plot":
@@ -1559,6 +1421,7 @@ return result"""
     
     def auto_update_plot(self):
         """Automatically update plot with current configuration"""
+        self.plot_status.config(text=f"Updating plot....")
         try:
             data_source = self.data_source_var.get()
             
@@ -1581,8 +1444,10 @@ return result"""
             
             x_label = self.x_label_var.get()
             y_label = self.y_label_var.get()
-            
-            series_to_plot = []
+            x_vals = []
+            y_vals = []
+            labels = []
+            colors = []
             for i in range(self.series_listbox.size()):
                 series_str = self.series_listbox.get(i)
                 parts = series_str.split(' | ')
@@ -1592,36 +1457,32 @@ return result"""
                 
                 if series_key in data:
                     series_data = data[series_key]
-                    x_data = series_data.get('x', [])
-                    y_data = series_data.get('y', [])
-                    
-                    if hasattr(x_data, '__len__') and hasattr(y_data, '__len__'):
-                        if len(x_data) == len(y_data):
-                            series_to_plot.append({
-                                'label': label,
-                                'x': x_data,
-                                'y': y_data,
-                                'color': color,
-                                'series_key': series_key
-                            })
-                        elif plot_type == "box":
-                            series_to_plot.append({
-                                'label': label,
-                                'x': x_data,
-                                'y': y_data,
-                                'color': color,
-                                'series_key': series_key,
-                                'is_box_plot': True
-                            })
-            
-            if not series_to_plot: return
-            
-            if plot_type == "box":
-                self.create_box_plot(ax, series_to_plot, title, x_label, y_label)
-            elif plot_type == "histogram":
-                self.create_histogram_plot(ax, series_to_plot, title, x_label, y_label)
-            else:
-                self.create_standard_plot(ax, series_to_plot, plot_type, title, x_label, y_label)
+
+                    x_vals.append(series_data.get('x', []))
+                    y_vals.append(series_data.get('y', []))
+                    labels.append(label)
+                    colors.append(color)
+            try:
+                if (plot_type == "box"):
+                    ax.boxplot(y_vals, tick_labels=x_vals)
+                elif (plot_type == "histogram"):
+                    ax.hist(y_vals, bins=20, alpha=0.7, color='blue', edgecolor='black')
+                else:
+                    for x, y, c, l in zip(x_vals, y_vals, colors, labels):
+                        if (plot_type == "scatter"):
+                            ax.scatter(x, y, color=c, label=l, alpha=0.6, s=80)
+                        elif (plot_type == "line"):
+                            ax.plot(x, y, color=c, label=l, marker='o', linewidth=2)
+                        elif (plot_type == "bar"):
+                            ax.bar(x, y, color=c, label=l, alpha=0.7)
+                        else:
+                            self.plot_status.config(text=f"Error creating box plot: {str(e)}")
+                            return
+            except Exception as e:
+                self.plot_status.config(text=f"Error creating box plot: {str(e)}")
+            ax.set_title(title)
+            ax.set_xlabel(x_label)
+            ax.set_ylabel(y_label)
             
             self.figure.tight_layout()
             self.canvas.draw()
@@ -1920,78 +1781,6 @@ return result"""
         current = self.data_source_var.get()
         if current not in sources and sources:
             self.data_source_var.set(sources[0])
-    
-    def create_standard_plot(self, ax, series_data, plot_type, title, x_label, y_label):
-        """Create standard plot (scatter, line, bar)"""
-        for series in series_data:
-            x_vals = series['x']
-            y_vals = series['y']
-            color = series['color']
-            label = series['label']
-            
-            if plot_type == "scatter":
-                ax.scatter(x_vals, y_vals, color=color, label=label, alpha=0.6, s=80)
-            elif plot_type == "line":
-                try:
-                    combined = list(zip(x_vals, y_vals))
-                    combined.sort(key=lambda x: x[0])
-                    x_sorted, y_sorted = zip(*combined) if combined else ([], [])
-                    ax.plot(x_sorted, y_sorted, color=color, label=label, marker='o', linewidth=2)
-                except:
-                    ax.plot(x_vals, y_vals, color=color, label=label, marker='o', linewidth=2)
-            elif plot_type == "bar":
-                ax.bar(range(len(y_vals)), y_vals, color=color, label=label, alpha=0.7)
-        
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
-        ax.set_title(title)
-        
-        if len(series_data) > 1:
-            ax.legend()
-    
-    def create_box_plot(self, ax, series_data, title, x_label, y_label):
-        """Create box plot"""
-        box_values = []
-        box_labels = []
-        
-        for series in series_data:
-            y_vals = series['y']
-            if hasattr(y_vals, '__len__') and len(y_vals) > 0:
-                box_values.append(y_vals)
-                box_labels.append(series['label'])
-        
-        if not box_values:
-            self.plot_status.config(text="No valid data for box plot")
-            return
-        
-        try:
-            ax.boxplot(box_values, tick_labels=box_labels)
-            ax.set_title(title)
-            ax.set_xlabel(x_label)
-            ax.set_ylabel(y_label)
-            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-        except Exception as e:
-            self.plot_status.config(text=f"Error creating box plot: {str(e)}")
-    
-    def create_histogram_plot(self, ax, series_data, title, x_label, y_label):
-        """Create histogram plot"""
-        all_values = []
-        
-        for series in series_data:
-            y_vals = series['y']
-            if hasattr(y_vals, '__len__'):
-                all_values.extend(y_vals)
-            else:
-                all_values.append(y_vals)
-        
-        if not all_values:
-            self.plot_status.config(text="No valid data for histogram")
-            return
-        
-        ax.hist(all_values, bins=20, alpha=0.7, color='blue', edgecolor='black')
-        ax.set_title(title)
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
     
     def on_closing(self):
         """Handle window closing"""
