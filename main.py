@@ -134,16 +134,7 @@ class UPPAALExperimentRunner:
         self.setup_plot_tab()
         
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
-
-    def on_tab_changed(self, _):
-        """Handle tab change event"""
-        current_tab = self.notebook.tab(self.notebook.select(), "text")
-        if current_tab == "Transform":
-            if hasattr(self, 'transform_code') and isinstance(self.transform_code, SyntaxHighlightingText):
-                self.transform_code._highlight()
-        elif current_tab == "Plot":
-            self.auto_config_change()
-    
+   
     # ==================== MODEL TAB ====================
     
     def setup_model_tab(self):
@@ -1801,7 +1792,18 @@ class UPPAALExperimentRunner:
             self.stop_event.set()
             self.experiment_thread.join(timeout=1.0)
         self.root.destroy()
-
+    
+    # ==================== TAB METHODS ====================
+    
+    def on_tab_changed(self, _):
+        """Handle tab change event"""
+        current_tab = self.notebook.tab(self.notebook.select(), "text")
+        if current_tab == "Transform":
+            if hasattr(self, 'transform_code') and isinstance(self.transform_code, SyntaxHighlightingText):
+                self.transform_code._highlight()
+        elif current_tab == "Plot":
+            self.auto_config_change()
+ 
 def main():
     root = tk.Tk()
     root.title("UPPAAL Experiment Suite")
