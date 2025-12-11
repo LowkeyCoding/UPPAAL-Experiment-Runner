@@ -229,9 +229,3 @@ def run_verification_pipeline(model_file, query_file, variables, seed=0, threads
                 os.unlink(f)
             except:
                 pass
-
-if __name__ == "__main__":
-    res = run_verifyta_single("/home/lokew/Documents/code/DensityMatrixQuantumSimulator/quantum-superdense-coding-6-sliding-window-2-noisy.xml", 
-                        "/home/lokew/Documents/code/DensityMatrixQuantumSimulator/quantum-superdense-coding-6-sliding-window-2-noisy.q", 0)
-    for x in res["data_points"]:
-        print(x)
