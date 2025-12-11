@@ -439,6 +439,12 @@ class UPPAALExperimentRunner:
         ttk.Button(series_controls, text="Remove All", command=self.remove_all_series).pack(side=tk.LEFT, padx=2)
         ttk.Button(series_controls, text="Edit", command=self.edit_series_dialog).pack(side=tk.LEFT, padx=2)
         
+        # Export Experiment
+        export_frame = ttk.LabelFrame(config_frame, text="Export", padding=10)
+        export_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        ttk.Button(export_frame, text="Export Experiment", command=self.save_experiment_config).pack(side=tk.LEFT, padx=2)
+        ttk.Button(export_frame, text="Export Experiment Data", command=self.export_experiment_data).pack(side=tk.LEFT, padx=2)
+
         # Right panel - Plot display
         right_panel = ttk.Frame(paned)
         paned.add(right_panel, weight=2)
