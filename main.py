@@ -79,6 +79,7 @@ class UPPAALExperimentRunner:
         
         # Plotting data
         self.raw_data = {}
+        self.transform_plot_args = {}
         self.transformed_data = {}
         self.transformations = {}
         self.plot_configs = OrderedDict()
@@ -1199,7 +1200,7 @@ class UPPAALExperimentRunner:
         
         # Save the transformation first
         self.transformations[name] = code
-        
+        # plot_args = {"meanline": True}
         try:
             safe_globals = {
                 'raw_data': self.raw_data,
@@ -1215,18 +1216,21 @@ class UPPAALExperimentRunner:
             
             exec(code, safe_globals)
             result = None
+            plot_args = None
             if "result" in safe_globals:
                 result = safe_globals["result"]
-            
+            if "plot_args" in safe_globals:
+                plot_args = safe_globals["plot_args"]
             if result is not None:
                 self.transformed_data[name] = result
+                if plot_args is not None:
+                    self.transform_plot_args[name] = plot_args
                 if not silent:
                     self.update_transform_list()
                     self.update_data_sources()
                     self.transform_status.config(text=f"Success: {name} ({len(result)} items)")
                 else:
                     return True
-                
                 # AUTO-UPDATE PLOT IF THIS IS THE CURRENT DATA SOURCE
                 if not silent and (self.notebook.tab(self.notebook.select(), "text") == "Plot" and 
                     self.data_source_var.get() == name):
@@ -1437,6 +1441,10 @@ class UPPAALExperimentRunner:
             
             if not data: return
             
+            if data_source in self.transform_plot_args:
+                args = self.transform_plot_args[data_source]
+            else:
+                args = {}
             self.figure.clear()
             ax = self.figure.add_subplot(111)
             plot_type = self.plot_type_var.get()
@@ -1469,17 +1477,17 @@ class UPPAALExperimentRunner:
                     colors.append(color)
             try:
                 if (plot_type == "box"):
-                    ax.boxplot(y_vals, tick_labels=x_vals)
+                    ax.boxplot(y_vals, tick_labels=x_vals, **args)
                 elif (plot_type == "histogram"):
                     ax.hist(y_vals, bins=20, alpha=0.7, color='blue', edgecolor='black')
                 else:
                     for x, y, c, l in zip(x_vals, y_vals, colors, labels):
                         if (plot_type == "scatter"):
-                            ax.scatter(x, y, color=c, label=l, alpha=0.6, s=80)
+                            ax.scatter(x, y, color=c, label=l, alpha=0.6, s=80,**args)
                         elif (plot_type == "line"):
-                            ax.plot(x, y, color=c, label=l, marker='o', linewidth=2)
+                            ax.plot(x, y, color=c, label=l, marker='o', linewidth=2,**args)
                         elif (plot_type == "bar"):
-                            ax.bar(x, y, color=c, label=l, alpha=0.7)
+                            ax.bar(x, y, color=c, label=l, alpha=0.7,**args)
                         else:
                             self.plot_status.config(text=f"Error creating box plot: {str(e)}")
                             return
