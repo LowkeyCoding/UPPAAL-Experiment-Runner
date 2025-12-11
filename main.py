@@ -14,7 +14,7 @@ import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
-import inspect # Use to get parameterized transformations
+import os 
 
 import process_model
 
@@ -205,7 +205,8 @@ class UPPAALExperimentRunner:
         tree_frame.grid_columnconfigure(0, weight=1)
         
         self.var_tree.bind('<Double-1>', self.on_variable_double_click)
-        ttk.Label(right_panel, text="Double-click a variable to edit its value", font=('Segoe UI', 8)).pack(pady=(10, 0))
+        self.var_tree.bind('<Button-3>', self.on_variable_right_click)
+        ttk.Label(right_panel, text="Double-click a variable to edit its value.\nSelect a variable then right-click to delete.", font=('Segoe UI', 8)).pack(pady=(10, 0))
     
     # ==================== EXPERIMENTS TAB ====================
     
@@ -317,7 +318,7 @@ class UPPAALExperimentRunner:
         ttk.Button(control_frame, text="New", command=self.new_transformation).pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="Save", command=self.save_transformation).pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="Remove", command=self.remove_transformation).pack(side=tk.LEFT, padx=2)
-        ttk.Button(control_frame, text="Execute", command=self.execute_current_transformation).pack(side=tk.LEFT, padx=2)
+        ttk.Button(control_frame, text="Run", command=self.execute_current_transformation).pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="Run All", command=self.run_all_transformations).pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="View Result", command=self.view_transform_result).pack(side=tk.LEFT, padx=2)
         
@@ -526,17 +527,22 @@ class UPPAALExperimentRunner:
             self.plot_configs = OrderedDict(config_data.get('plot_configs', {}))
             
             # Update UI
-            if self.model_file:
+            if self.model_file and os.path.isfile(self.model_file):
                 self.model_entry.delete(0, tk.END)
                 self.model_entry.insert(0, self.model_file)
                 self.load_model_declarations()
+            else: 
+                self.model_file = None
             
-            if self.queries_file:
+            if self.queries_file and os.path.isfile(self.queries_file):
                 self.queries_entry.delete(0, tk.END)
                 self.queries_entry.insert(0, self.queries_file)
                 with open(self.queries_file) as f:
                     self.declarations["Queries File"] = f.read()
                 self.declaration_combo['values'] = list(self.declarations.keys())
+            else:
+                self.queries_file = None
+
             
             self.merge_variables()
             self.load_variables()
@@ -546,8 +552,10 @@ class UPPAALExperimentRunner:
                 self.on_plot_config_selected(None)
             
             self.update_transform_list()
-            messagebox.showinfo("Success", f"Experiment configuration loaded from {filename}")
-            
+            if (self.queries_file and self.model_file):
+                messagebox.showinfo("Success", f"Experiment configuration loaded from {filename}")
+            else:
+                messagebox.showinfo("Warning", f"Unable to find model and/or query file select them to continue.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load configuration: {str(e)}")
             traceback.print_exc()
@@ -748,6 +756,22 @@ class UPPAALExperimentRunner:
         
         dialog.bind('<Return>', lambda e: save_changes())
         dialog.bind('<Escape>', lambda e: cancel())
+    
+    def on_variable_right_click(self, _):
+        item = self.var_tree.selection()
+        if not item: return
+        
+        item = item[0]
+        values = self.var_tree.item(item, 'values')
+        if len(values) < 2: return
+        
+        full_name = values[0]
+        if messagebox.askyesno("Confirm", f"Remove variable '{full_name}'?"):
+            section, name = full_name.split(".")
+            if section in self.user_variables:
+                if name in self.user_variables[section]:
+                    del self.user_variables[section][name]
+                    self.refresh_variables()
     
     # ==================== DECLARATIONS TAB METHODS ====================
     
@@ -1452,6 +1476,8 @@ class UPPAALExperimentRunner:
             y_vals = []
             labels = []
             colors = []
+            if self.series_listbox.size() == 0:
+                messagebox.showerror("Error", "No series selected")
             for i in range(self.series_listbox.size()):
                 series_str = self.series_listbox.get(i)
                 parts = series_str.split(' | ')
@@ -1461,9 +1487,10 @@ class UPPAALExperimentRunner:
                 
                 if series_key in data:
                     series_data = data[series_key]
-
                     x_vals.append(series_data.get('x', []))
                     y_vals.append(series_data.get('y', []))
+                    if len(x_vals) == 0 or len(y_vals) == 0:
+                        messagebox.showwarning("Warning", f"Series {series_key} has no data (X len: {len(x_vals)}, Y len {len(y_vals)})")
                     labels.append(label)
                     colors.append(color)
             try:
