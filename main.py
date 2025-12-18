@@ -110,6 +110,7 @@ class UPPAALExperimentRunner:
             'title': 'Plot',
             'x_label': 'X',
             'y_label': 'Y',
+            'z_label': 'Z',
             'include_seed': False
         }
     
@@ -122,14 +123,14 @@ class UPPAALExperimentRunner:
         
         # Create tabs
         self.tabs = {}
-        for name in ["Model", "Experiments", "Declarations", "Transform", "Plot"]:
+        for name in ["Model", "Declarations", "Experiments", "Transform", "Plot"]:
             self.tabs[name] = ttk.Frame(self.notebook)
             self.notebook.add(self.tabs[name], text=name)
         
         # Setup each tab
         self.setup_model_tab()
-        self.setup_experiments_tab()
         self.setup_declarations_tab()
+        self.setup_experiments_tab()
         self.setup_transform_tab()
         self.setup_plot_tab()
         
@@ -208,53 +209,6 @@ class UPPAALExperimentRunner:
         self.var_tree.bind('<Button-3>', self.on_variable_right_click)
         ttk.Label(right_panel, text="Double-click a variable to edit its value.\nSelect a variable then right-click to delete.", font=('Segoe UI', 8)).pack(pady=(10, 0))
     
-    # ==================== EXPERIMENTS TAB ====================
-    
-    def setup_experiments_tab(self):
-        """Setup Experiments tab"""
-        tab = self.tabs["Experiments"]
-        main_container = ttk.Frame(tab, padding=10)
-        main_container.pack(fill=tk.BOTH, expand=True)
-        
-        # Control panel
-        control_frame = ttk.LabelFrame(main_container, text="Experiment Controls", padding=10)
-        control_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        thread_frame = ttk.Frame(control_frame)
-        thread_frame.pack(fill=tk.X, pady=(0, 10))
-        ttk.Label(thread_frame, text="Parallel Threads:").pack(side=tk.LEFT)
-        ttk.Spinbox(thread_frame, from_=1, to=8, textvariable=self.num_threads, width=10).pack(side=tk.LEFT, padx=5)
-        
-        # Action buttons
-        button_frame = ttk.Frame(control_frame)
-        button_frame.pack(fill=tk.X)
-        self.start_btn = ttk.Button(button_frame, text="▶ Start Experiments", command=self.start_experiment)
-        self.start_btn.pack(side=tk.LEFT, padx=2)
-        self.stop_btn = ttk.Button(button_frame, text="■ Stop", command=self.stop_experiment, state='disabled')
-        self.stop_btn.pack(side=tk.LEFT, padx=2)
-        self.clear_btn = ttk.Button(button_frame, text="Clear Results", command=self.clear_results)
-        self.clear_btn.pack(side=tk.LEFT, padx=2)
-        ttk.Button(button_frame, text="Export Data", command=self.export_experiment_data).pack(side=tk.LEFT, padx=2)
-        
-        # Progress panel
-        progress_frame = ttk.LabelFrame(main_container, text="Progress", padding=10)
-        progress_frame.pack(fill=tk.X, pady=(0, 10))
-        self.progress_bar = ttk.Progressbar(progress_frame, mode='determinate')
-        self.progress_bar.pack(fill=tk.X, pady=(0, 5))
-        self.status_label = ttk.Label(progress_frame, text="Ready to start experiments")
-        self.status_label.pack(anchor=tk.W)
-        
-        # Results panel
-        results_frame = ttk.LabelFrame(main_container, text="Results", padding=10)
-        results_frame.pack(fill=tk.BOTH, expand=True)
-        self.results_text = scrolledtext.ScrolledText(results_frame, height=20, font=('Consolas', 9))
-        self.results_text.pack(fill=tk.BOTH, expand=True)
-        
-        result_buttons = ttk.Frame(results_frame)
-        result_buttons.pack(fill=tk.X, pady=(10, 0))
-        ttk.Button(result_buttons, text="View Raw Data", command=self.view_raw_data).pack(side=tk.LEFT, padx=2)
-        ttk.Button(result_buttons, text="Copy Results", command=self.copy_results).pack(side=tk.LEFT, padx=2)
-    
     # ==================== DECLARATIONS TAB ====================
     
     def setup_declarations_tab(self):
@@ -286,6 +240,54 @@ class UPPAALExperimentRunner:
         # Declaration editor
         self.declaration_editor = scrolledtext.ScrolledText(text_frame, height=20, font=('Consolas', 10))
         self.declaration_editor.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+    # ==================== EXPERIMENTS TAB ====================
+    
+    def setup_experiments_tab(self):
+        """Setup Experiments tab"""
+        tab = self.tabs["Experiments"]
+        main_container = ttk.Frame(tab, padding=10)
+        main_container.pack(fill=tk.BOTH, expand=True)
+        
+        # Control panel
+        control_frame = ttk.LabelFrame(main_container, text="Experiment Controls", padding=10)
+        control_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        thread_frame = ttk.Frame(control_frame)
+        thread_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(thread_frame, text="Parallel Threads:").pack(side=tk.LEFT)
+        ttk.Spinbox(thread_frame, from_=1, to=8, textvariable=self.num_threads, width=10).pack(side=tk.LEFT, padx=5)
+        
+        # Action buttons
+        button_frame = ttk.Frame(control_frame)
+        button_frame.pack(fill=tk.X)
+        self.start_btn = ttk.Button(button_frame, text="▶ Start Experiments", command=self.start_experiment)
+        self.start_btn.pack(side=tk.LEFT, padx=2)
+        self.stop_btn = ttk.Button(button_frame, text="■ Stop", command=self.stop_experiment, state='disabled')
+        self.stop_btn.pack(side=tk.LEFT, padx=2)
+        self.clear_btn = ttk.Button(button_frame, text="Clear Results", command=self.clear_results)
+        self.clear_btn.pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Export Data", command=self.export_experiment_data).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Import Data", command=self.import_experiment_data).pack(side=tk.LEFT, padx=2)
+        
+        # Progress panel
+        progress_frame = ttk.LabelFrame(main_container, text="Progress", padding=10)
+        progress_frame.pack(fill=tk.X, pady=(0, 10))
+        self.progress_bar = ttk.Progressbar(progress_frame, mode='determinate')
+        self.progress_bar.pack(fill=tk.X, pady=(0, 5))
+        self.status_label = ttk.Label(progress_frame, text="Ready to start experiments")
+        self.status_label.pack(anchor=tk.W)
+        
+        # Results panel
+        results_frame = ttk.LabelFrame(main_container, text="Results", padding=10)
+        results_frame.pack(fill=tk.BOTH, expand=True)
+        self.results_text = scrolledtext.ScrolledText(results_frame, height=20, font=('Consolas', 9))
+        self.results_text.pack(fill=tk.BOTH, expand=True)
+        
+        result_buttons = ttk.Frame(results_frame)
+        result_buttons.pack(fill=tk.X, pady=(10, 0))
+        ttk.Button(result_buttons, text="View Raw Data", command=self.view_raw_data).pack(side=tk.LEFT, padx=2)
+        ttk.Button(result_buttons, text="Copy Results", command=self.copy_results).pack(side=tk.LEFT, padx=2)
     
     # ==================== TRANSFORM TAB ====================
     
@@ -400,7 +402,11 @@ class UPPAALExperimentRunner:
         ttk.Label(labels_frame, text="Y-axis Label:").grid(row=1, column=0, sticky=tk.W, pady=2)
         self.y_label_var = tk.StringVar(value="Y")
         ttk.Entry(labels_frame, textvariable=self.y_label_var, validatecommand=self.auto_config_change, width=30).grid(row=1, column=1, padx=5, pady=2, sticky=tk.W)
+        ttk.Label(labels_frame, text="Z-axis Label:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        self.z_label_var = tk.StringVar(value="Z")
+        ttk.Entry(labels_frame, textvariable=self.z_label_var, validatecommand=self.auto_config_change, width=30).grid(row=2, column=1, padx=5, pady=2, sticky=tk.W)
 
+        
         # Data source
         source_frame = ttk.LabelFrame(config_frame, text="Data Source", padding=10)
         source_frame.pack(fill=tk.X, pady=(0, 10))
@@ -415,7 +421,7 @@ class UPPAALExperimentRunner:
         type_frame.pack(fill=tk.X, pady=(0, 10))
         ttk.Label(type_frame, text="Type:").pack(side=tk.LEFT)
         self.plot_type_var = tk.StringVar(value="scatter")
-        self.plot_type_combo = ttk.Combobox(type_frame, textvariable=self.plot_type_var, values=["scatter", "line", "bar", "box", "histogram"], state='readonly', width=15)
+        self.plot_type_combo = ttk.Combobox(type_frame, textvariable=self.plot_type_var, values=["scatter", "line", "bar", "box", "histogram", "3d"], state='readonly', width=15)
         self.plot_type_combo.bind('<<ComboboxSelected>>', self.auto_config_change)
         self.plot_type_combo.pack(side=tk.LEFT, padx=5)
         
@@ -579,7 +585,6 @@ class UPPAALExperimentRunner:
             if filename.endswith('.json'):
                 export_data = {
                     'raw_data': self.raw_data,
-                    'results': self.results,
                     'transformed_data': self.transformed_data,
                     'export_time': datetime.now().isoformat()
                 }
@@ -588,7 +593,6 @@ class UPPAALExperimentRunner:
             elif filename.endswith('.pkl'):
                 export_data = {
                     'raw_data': self.raw_data,
-                    'results': self.results,
                     'transformed_data': self.transformed_data,
                     'export_time': datetime.now().isoformat()
                 }
@@ -599,6 +603,18 @@ class UPPAALExperimentRunner:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to export data: {str(e)}")
     
+    def import_experiment_data(self):
+        """Import experiment data"""
+        filename = filedialog.askopenfilename(title="Select Experiment Data", filetypes=[("JSON files", "*.json"), ("Pickle files", "*.pkl"), ("All files", "*.*")], defaultextension=".json")
+        if filename:
+            self.model_file = filename
+            self.model_entry.delete(0, tk.END)
+            self.model_entry.insert(0, filename)
+            with open(filename) as f:
+                data = json.load(f)
+                self.raw_data = data["raw_data"]
+                self.transformed_data = data["transformed_data"]
+
     # ==================== MODEL TAB METHODS ====================
     
     def load_model_declarations(self):
@@ -815,8 +831,9 @@ class UPPAALExperimentRunner:
         elif selection == "Queries File":
             with open(self.queries_file, "w") as f:
                 f.write(new_text)
+                self.declarations[selection] = new_text
                 messagebox.showinfo("Saved", f"Declaration '{selection}' updated")
-            return
+                return
             
         with open(self.model_file, "r") as f:
             model = xml.parse(f)
@@ -876,15 +893,19 @@ class UPPAALExperimentRunner:
         self.status_label.config(text="Starting experiments...")
         self.progress_bar['value'] = 0
         
+        # Generate variable combinations
+        assignments = process_model.generate_all_assignments(vars_dict)
+
         # Start thread
         self.experiment_thread = threading.Thread(
             target=self.run_experiment,
-            args=(seed, self.num_threads.get(), vars_dict),
+            args=(seed, self.num_threads.get(), assignments),
             daemon=True
         )
         self.experiment_thread.start()
+        self.progress_queue.put(('progress', 0, len(assignments)))
     
-    def run_experiment(self, seed, threads, vars_dict):
+    def run_experiment(self, seed, threads, assignments):
         """Run experiment in background thread"""
         try:
             def progress_callback(current, total):
@@ -893,9 +914,10 @@ class UPPAALExperimentRunner:
             self.results = process_model.run_verification_pipeline(
                 self.model_file,
                 self.queries_file,
-                vars_dict,
+                assignments,
                 seed=seed,
                 threads=threads,
+                timeout=None,
                 progress_callback=progress_callback
             )
             
@@ -1338,6 +1360,7 @@ class UPPAALExperimentRunner:
                 'title': 'Plot',
                 'x_label': 'X',
                 'y_label': 'Y',
+                'z_label': 'Z',
                 'include_seed': False
             }
             
@@ -1370,6 +1393,7 @@ class UPPAALExperimentRunner:
             'title': self.plot_title_var.get(),
             'x_label': self.x_label_var.get(),
             'y_label': self.y_label_var.get(),
+            'z_label': self.z_label_var.get(),
             'include_seed': self.include_seed_var.get()
         }
         
@@ -1467,7 +1491,6 @@ class UPPAALExperimentRunner:
             else:
                 args = {}
             self.figure.clear()
-            ax = self.figure.add_subplot(111)
             plot_type = self.plot_type_var.get()
             
             base_title = self.plot_title_var.get()
@@ -1478,10 +1501,16 @@ class UPPAALExperimentRunner:
             
             x_label = self.x_label_var.get()
             y_label = self.y_label_var.get()
+            z_label = self.z_label_var.get()
             x_vals = []
             y_vals = []
+            z_vals = []
             labels = []
             colors = []
+            if plot_type == "3d": 
+                ax = self.figure.add_subplot(111,projection="3d")
+            else: 
+                ax = self.figure.add_subplot(111)
             if self.series_listbox.size() == 0:
                 messagebox.showerror("Error", "No series selected")
             for i in range(self.series_listbox.size()):
@@ -1495,7 +1524,8 @@ class UPPAALExperimentRunner:
                     series_data = data[series_key]
                     x_vals.append(series_data.get('x', []))
                     y_vals.append(series_data.get('y', []))
-                    if len(x_vals) == 0 or len(y_vals) == 0:
+                    z_vals.append(series_data.get('z', []))
+                    if len(x_vals) == 0 or len(y_vals) == 0: 
                         messagebox.showwarning("Warning", f"Series {series_key} has no data (X len: {len(x_vals)}, Y len {len(y_vals)})")
                     labels.append(label)
                     colors.append(color)
@@ -1504,8 +1534,13 @@ class UPPAALExperimentRunner:
                     ax.boxplot(y_vals, tick_labels=x_vals, **args)
                 elif (plot_type == "histogram"):
                     ax.hist(y_vals, bins=20, alpha=0.7, color='blue', edgecolor='black')
+                elif (plot_type == "3d"):
+                    x = np.array(x_vals)
+                    y = np.array(y_vals)
+                    z = np.array(z_vals)
+                    ax.plot_trisurf(x[0],y[0],z[0], **args)
                 else:
-                    for x, y, c, l in zip(x_vals, y_vals, colors, labels):
+                    for x, y, z, c, l in zip(x_vals, y_vals, z_vals, colors, labels):
                         if (plot_type == "scatter"):
                             ax.scatter(x, y, color=c, label=l, alpha=0.6, s=80,**args)
                         elif (plot_type == "line"):
@@ -1520,6 +1555,8 @@ class UPPAALExperimentRunner:
             ax.set_title(title)
             ax.set_xlabel(x_label)
             ax.set_ylabel(y_label)
+            if z_label and plot_type == "3d":
+                ax.set_zlabel(z_label)
             
             self.figure.tight_layout()
             self.canvas.draw()
@@ -1558,6 +1595,7 @@ class UPPAALExperimentRunner:
             self.plot_title_var.set(config.get('title', 'Plot'))
             self.x_label_var.set(config.get('x_label', 'X'))
             self.y_label_var.set(config.get('y_label', 'Y'))
+            self.z_label_var.set(config.get('z_label', 'Z'))
             self.include_seed_var.set(config.get('include_seed', False))
             
             self.series_listbox.delete(0, tk.END)

@@ -63,7 +63,7 @@ def generate_model_variations(model_content, assignments):
         for section, vars_list in by_section.items():
             if section == "project":
                 path = "declaration"
-            elif section == "System":
+            elif section == "system":
                 path = "system"
             else:
                 path = f"//template[declaration and name/text()='{section}']//declaration"
@@ -76,7 +76,6 @@ def generate_model_variations(model_content, assignments):
                         pattern = rf"{var}\s*=\s*[^;]*;"
                         replacement = f"{var} = {val};"
                         elem.text = re.sub(pattern, replacement, elem.text, flags=re.MULTILINE)
-        
         # Save to temp file
         with tempfile.NamedTemporaryFile(mode='w', suffix=f'_var_{i}.xml', delete=False) as f:
             f.write(xml.tostring(tree).decode("UTF-8"))
@@ -84,7 +83,7 @@ def generate_model_variations(model_content, assignments):
     
     return temp_files
 
-def run_verifyta_single(model_file, query_file, seed):
+def run_verifyta_single(model_file, query_file, seed, timeout):
     """Run verifyta on a single model"""
     cmd = ["verifyta"]
     if seed != 0:
@@ -92,7 +91,7 @@ def run_verifyta_single(model_file, query_file, seed):
     cmd.extend([model_file, query_file])
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         
         # Parse output
         data_points = []
@@ -155,14 +154,12 @@ def run_verifyta_single(model_file, query_file, seed):
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
-def run_verification_pipeline(model_file, query_file, variables, seed=0, threads=4, progress_callback=None):
+def run_verification_pipeline(model_file, query_file, assignments, seed=0, threads=4, timeout=None, progress_callback=None):
     """Main pipeline to run all experiments"""
     # Read model
     with open(model_file) as f:
         model_content = f.read()
     
-    # Generate assignments
-    assignments = generate_all_assignments(variables)
     if not assignments:
         return {}
     
@@ -178,14 +175,14 @@ def run_verification_pipeline(model_file, query_file, variables, seed=0, threads
         with ThreadPoolExecutor(max_workers=threads) as executor:
             futures = {}
             for i, (model_file, assignment) in enumerate(zip(temp_files, assignments)):
-                future = executor.submit(run_verifyta_single, model_file, query_file, seed)
+                future = executor.submit(run_verifyta_single, model_file, query_file, seed, timeout)
                 futures[future] = (i, assignment)
             
             # Collect results
             for i, future in enumerate(as_completed(futures)):
                 var_id, assignment = futures[future]
                 try:
-                    result = future.result(timeout=310)
+                    result = future.result(timeout=timeout)
                     
                     # Add assignment info
                     result['variation_id'] = var_id
@@ -209,16 +206,6 @@ def run_verification_pipeline(model_file, query_file, variables, seed=0, threads
                     
                 except Exception as e:
                     print(f"Error in variation {var_id}: {e}")
-        
-        # Add statistics
-        successful = sum(1 for r in results.values() if r.get('success'))
-        results['statistics'] = {
-            'total_variations': len(assignments),
-            'successful_runs': successful,
-            'failed_runs': len(assignments) - successful,
-            'seed_used': seed,
-            'threads_used': threads
-        }
         
         return results
     
