@@ -3,6 +3,7 @@ from lxml import etree
 import pprint
 import itertools
 import process_model
+import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
@@ -21,6 +22,8 @@ def main(args):
         'export_plots': None,
         'extensions': [],
         'get_var_val': get_var_val,
+        'np': np,
+        'plt': plt
     }
     
     with open(args.config) as f:
