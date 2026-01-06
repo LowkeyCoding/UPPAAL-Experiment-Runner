@@ -3,7 +3,7 @@ queries = "/home/lokew/Documents/code/DensityMatrixQuantumSimulator/quantum-supe
 
 vars = {
     'project': {
-        'Bitstuffing': list(range(0, 9)),
+        'Bitstuffing': list(range(0,9)),
         'T1': '20',
         'T2': '18',
         },
@@ -18,7 +18,7 @@ seed = 428094
 experiment_data = "/home/lokew/Documents/code/UPPAAL-Experiment-Runner/output_cfg/"
 plots = []
 extensions = ["svg", "eps"]
-def get_error_per_bitsuffing(ax, data, TARGET_QUERY_ID = 0):
+def get_error_per_bitsuffing(ax, data, TARGET_QUERY_ID = 0, X_OFFSET = 2):
     if not data:
         raise ValueError("No experiment data available.")
 
@@ -51,7 +51,7 @@ def get_error_per_bitsuffing(ax, data, TARGET_QUERY_ID = 0):
     X = []
     Y = []
     for bitstuffing, values in sorted(grouped_data.items()):
-        X.append(bitstuffing)
+        X.append(bitstuffing+X_OFFSET)
         Y.append(values)
     ax.boxplot(Y, tick_labels=X)
 
@@ -62,19 +62,19 @@ def errors_per_qubit(ax, data):
     ax.set_ylabel("Errors / Qubits")
 
 def errors_per_bit(ax, data):
-    get_error_per_bitsuffing(ax, data)
+    get_error_per_bitsuffing(ax, data, TARGET_QUERY_ID = 1)
     ax.set_title("Errors per Bits Sent")
     ax.set_xlabel("c (Bitstuffing)")
     ax.set_ylabel("Errors / Bits")
 
 def bits_per_qubit(ax, data):
-    get_error_per_bitsuffing(ax, data)
+    get_error_per_bitsuffing(ax, data, TARGET_QUERY_ID = 2)
     ax.set_title("Bits per Qubit Sent")
     ax.set_xlabel("c (Bitstuffing)")
     ax.set_ylabel("Bits / Qubits")
 
 def bits_per_timeslot(ax, data):
-    get_error_per_bitsuffing(ax, data)
+    get_error_per_bitsuffing(ax, data, TARGET_QUERY_ID = 3)
     ax.set_title("Bits per Timeslot Sent")
     ax.set_xlabel("c (Bitstuffing)")
     ax.set_ylabel("Bits / Timeslot")

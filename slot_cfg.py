@@ -33,7 +33,8 @@ seed = 428094
 experiment_data = "/home/lokew/Documents/code/UPPAAL-Experiment-Runner/output_slot/"
 plots = []
 extensions = ["svg", "eps"]
-def get_error_per_timeslot(ax, data, TARGET_QUERY_ID = 0, TARGET_BITSTUFFING = 8, MIN_TIMESLOT = 15):
+
+def get_error_per_timeslot(ax, data, TARGET_QUERY_ID = 0, TARGET_BITSTUFFING = 8, MIN_TIMESLOT = 15, X_OFFSET=2):
     if not data:
         raise ValueError("No experiment data available.")
 
@@ -75,7 +76,7 @@ def get_error_per_timeslot(ax, data, TARGET_QUERY_ID = 0, TARGET_BITSTUFFING = 8
         Y.append(values)
     ax.boxplot(Y, tick_labels=X)
 
-def get_3d_error(ax, data, TARGET_QUERY_ID = 0, MIN_TIMESLOT = 30):
+def get_3d_error(ax, data, TARGET_QUERY_ID = 0, MIN_TIMESLOT = 30, Y_OFFSET= 2):
     plot_args = {"cmap": "viridis", 'linewidth': 0.2, "antialiased": True}
 
     if not data:
@@ -102,7 +103,7 @@ def get_3d_error(ax, data, TARGET_QUERY_ID = 0, MIN_TIMESLOT = 30):
         for _, points in data_points.items():
             t_z.append(float(points[-1][1]))
         x_vals.append(timeslot)
-        y_vals.append(bitstuffing+2)
+        y_vals.append(bitstuffing+Y_OFFSET)
         from statistics import mean
         z_vals.append(mean(t_z))
     ax.plot_trisurf(x_vals, y_vals, z_vals, **plot_args)
