@@ -45,9 +45,9 @@ def main(args):
                 get_assignments(globals["vars"]),
                 globals["seed"],
                 globals["threads"])
-            for key, data in raw.items():
-                if "success" in data and not data["success"]:
-                    print(f"{key}: {data["stderr"]}")
+            #for key, data in raw.items():
+                #if "success" in data and not data["success"]:
+                #    print(f"{key}: {data["stderr"]}")
             with open(globals["experiment_data"] + "out.data", "w") as f:
                 f.write(str(raw))
     if args.plot or args.export:

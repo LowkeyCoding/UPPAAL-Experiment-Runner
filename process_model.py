@@ -103,7 +103,9 @@ def run_verifyta_single(model_file, query_file, seed, timeout):
         
         for line in lines:
             line = line.strip()
-            
+            if line.startswith("(") and line.endswith(":"):
+                fidx += 1
+                data_points.append({})
             # Data points
             if line.startswith("["):
                 parts = line.split(':', 1)
@@ -128,8 +130,6 @@ def run_verifyta_single(model_file, query_file, seed, timeout):
             elif 'Verifying formula' in line:
                 match = re.search(r'Verifying formula (\d+)', line)
                 if match:
-                    fidx += 1
-                    data_points.append({})
                     formulas.append({
                         'number': match.group(1),
                         'satisfied': None
@@ -140,7 +140,7 @@ def run_verifyta_single(model_file, query_file, seed, timeout):
             
             elif ' -- Formula is not satisfied' in line and formulas:
                 formulas[-1]['satisfied'] = False
-
+        #print("number of queries: " + len(data_points))
         return {
             'success': result.returncode == 0,
             'stderr': result.stderr,
