@@ -5,6 +5,7 @@ import itertools
 import process_model
 import numpy as np
 import matplotlib.pyplot as plt
+import simdjson
 from pathlib import Path
 
 def get_var_val(assignment, section, name):
@@ -45,15 +46,12 @@ def main(args):
                 get_assignments(globals["vars"]),
                 globals["seed"],
                 globals["threads"])
-            #for key, data in raw.items():
-                #if "success" in data and not data["success"]:
-                #    print(f"{key}: {data["stderr"]}")
             with open(globals["experiment_data"] + "out.data", "w") as f:
-                f.write(str(raw))
+                f.write(simdjson.dumps(raw))
     if args.plot or args.export:
         if globals["experiment_data"] != None:
             with open(globals["experiment_data"] + "out.data") as f:
-                data = eval(f.read())
+                data = simdjson.loads(f.read())
                 for plot, kw in globals["plots"]:
                     fig, ax = plt.subplots(subplot_kw=kw)
                     plot(ax, data)
