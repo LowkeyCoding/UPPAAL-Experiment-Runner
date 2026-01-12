@@ -7,7 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 from pathlib import Path
-import ast
 
 def get_var_val(group, section, name):
     """Get parameter value from HDF5 group attributes"""
@@ -18,12 +17,9 @@ def get_var_val(group, section, name):
                 return group.attrs[attr_key]
     return None
 
-def h5_progress_callback(h5file_path):
-    """Create a progress callback that updates HDF5 file"""
-    def callback(result, var_id, total):
-        # Just print progress, HDF5 is updated in main function
-        print(f"Completed variation {var_id}")
-    return callback
+def callback(var_id):
+    # Just print progress, HDF5 is updated in main function
+    print(f"Completed variation {var_id}")
 
 def main(args):
     globals = {
@@ -78,7 +74,7 @@ def main(args):
                 globals["seed"],
                 globals["threads"],
                 hdf5_file=str(hdf5_path),
-                progress_callback=h5_progress_callback(hdf5_path), experiment=vars_list)
+                progress_callback=callback, experiment=vars_list)
             
             print(f"Results saved to {hdf5_path}")
     

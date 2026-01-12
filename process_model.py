@@ -172,7 +172,7 @@ def store_result_hdf5(h5file, result):
     var_id = result['id']
     assignment = result['assignment']
     
-    var_group = h5file.create_group(f'variations/var_{var_id}')
+    var_group = h5file.create_group(f'var_{var_id}')
     
     # Store assignment as attributes
     for section, var, val in assignment:
@@ -232,7 +232,7 @@ def result_writer(h5file, results_queue, h5lock, progress_callback, stop_event):
             
             # Update progress
             if progress_callback:
-                progress_callback(result, processed_count, None)
+                progress_callback(processed_count)
             
             processed_count += 1
             results_queue.task_done()
@@ -253,7 +253,6 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
     
     if not assignments:
         return {}
-    
     print("Running variations...")
     
     # Create HDF5 file
@@ -262,7 +261,6 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
     
     if h5file:
         # Create datasets structure
-        h5file.create_group('variations')
         h5file.attrs['total_variations'] = 0
         h5file.attrs['model_file'] = model_file
         h5file.attrs['query_file'] = query_file
@@ -323,7 +321,7 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
                         else:
                             # If no HDF5, process result directly
                             if progress_callback:
-                                progress_callback(result, result['id'], None)
+                                progress_callback(result['id'], len(assignments))
                         
                         # Remove from active futures (allows garbage collection)
                         active_futures.remove(future)
@@ -354,7 +352,7 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
         
         # Wait for writer to finish
         if writer_thread:
-            writer_thread.join(timeout=5.0)
+            writer_thread.join(timeout=60.0)
             if writer_thread.is_alive():
                 print("Warning: Writer thread did not finish in time")
         
