@@ -9,11 +9,13 @@ import h5py
 from pathlib import Path
 import ast
 
-def get_var_val(assignment, section, name):
-    """Get variable value from assignment tuple list"""
-    for sec, var, val in assignment:
-        if sec == section and var == name:
-            return val
+def get_var_val(group, section, name):
+    """Get parameter value from HDF5 group attributes"""
+    for attr_key in group.attrs:
+        if attr_key.startswith('param_'):
+            parts = attr_key.split('_')
+            if len(parts) == 3 and parts[1] == section and parts[2] == name:
+                return group.attrs[attr_key]
     return None
 
 def h5_progress_callback(h5file_path):
@@ -76,7 +78,7 @@ def main(args):
                 globals["seed"],
                 globals["threads"],
                 hdf5_file=str(hdf5_path),
-                progress_callback=h5_progress_callback(hdf5_path))
+                progress_callback=h5_progress_callback(hdf5_path), experiment=vars_list)
             
             print(f"Results saved to {hdf5_path}")
     

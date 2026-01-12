@@ -42,9 +42,8 @@ def parse_variable_definition(var_def):
                 return [v.strip() for v in match.group(1).split(',')]
         except:
             pass
-    
-    # Comma-separated values
-    return [v.strip() for v in var_def.split(',') if v.strip()]
+
+    return [var_def]
 
 def generate_all_assignments(variables):
     """Generate all variable assignments as generator to avoid memory explosion"""
@@ -113,9 +112,9 @@ def run_verifyta_single(model_file, query_file, seed, timeout, var_id, assignmen
 
         lines = result.stdout.split('\n')
         
-        for line in lines:
+        for idx, line in enumerate(lines):
             line = line.strip()
-            if line.startswith("(") and line.endswith(":"):
+            if line.endswith(":") and idx != 0:
                 fidx += 1
                 data_points.append({})
             # Data points
@@ -200,10 +199,9 @@ def store_result_hdf5(h5file, result):
     
     # Store data points efficiently
     if result.get('data_points'):
-        data_group = var_group.create_group('data_points')
         
         for formula_idx, formula_data in enumerate(result['data_points']):
-            formula_group = data_group.create_group(f'formula_{formula_idx}')
+            formula_group = var_group.create_group(f'formula_{formula_idx}')
             
             for var_name, points in formula_data.items():
                 if points:
@@ -247,7 +245,7 @@ def result_writer(h5file, results_queue, h5lock, progress_callback, stop_event):
     print(f"Result writer finished. Processed {processed_count} results.")
 
 def run_verification_pipeline(model_file, query_file, assignments, seed=0, threads=4, 
-                              timeout=None, hdf5_file=None, progress_callback=None):
+                              timeout=None, hdf5_file=None, progress_callback=None, experiment = None):
     """Main pipeline to run all experiments with HDF5 storage"""
     # Read model
     with open(model_file) as f:
@@ -268,6 +266,8 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
         h5file.attrs['total_variations'] = 0
         h5file.attrs['model_file'] = model_file
         h5file.attrs['query_file'] = query_file
+        h5file.attrs['experiment'] = str(experiment)
+        h5file.attrs['seed'] = seed
     
     # Queue for passing results from worker threads to writer thread
     results_queue = Queue(maxsize=threads * 2)  # Limit queue size
