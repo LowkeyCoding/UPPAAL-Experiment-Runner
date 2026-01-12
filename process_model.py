@@ -1,4 +1,3 @@
-# process_model.py - Simplified
 import subprocess
 import re
 import tempfile
@@ -6,9 +5,26 @@ import itertools
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from lxml import etree as xml
+import h5py
+import numpy as np
+from threading import Lock
+from queue import Queue, Empty
+from threading import Thread, Event
 
 def parse_variable_definition(var_def):
-    """Parse variable definition into list of values"""
+    """Parse variable definition into list of values - handles both strings and lists"""
+    # If var_def is already a list, return it as is
+    if isinstance(var_def, list) or hasattr(var_def, '__iter__') and not isinstance(var_def, str):
+        # Convert to list and handle any nested strings
+        result = []
+        for item in var_def:
+            if isinstance(item, str):
+                result.append(item.strip())
+            else:
+                result.append(item)
+        return result
+    
+    # If it's a string, parse it
     if 'range' in var_def:
         try:
             match = re.search(r'range\((\d+),\s*(\d+)(?:,\s*(\d+))?\)', var_def)
@@ -31,7 +47,7 @@ def parse_variable_definition(var_def):
     return [v.strip() for v in var_def.split(',') if v.strip()]
 
 def generate_all_assignments(variables):
-    """Generate all variable assignments"""
+    """Generate all variable assignments as generator to avoid memory explosion"""
     options = []
     
     for section, var_list in variables.items():
@@ -42,13 +58,11 @@ def generate_all_assignments(variables):
     if not options:
         return []
     
-    # Cartesian product
-    return [list(comb) for comb in itertools.product(*options)]
+    # Return generator instead of list
+    return (list(comb) for comb in itertools.product(*options))
 
 def generate_model_variations(model_content, assignments):
-    """Create model files for each assignment"""
-    temp_files = []
-    
+    """Create model files for each assignment - yield instead of storing all"""
     for i, assignment in enumerate(assignments):
         tree = xml.fromstring(model_content.encode())
         
@@ -76,15 +90,14 @@ def generate_model_variations(model_content, assignments):
                         pattern = rf"{var}\s*=\s*[^;]*;"
                         replacement = f"{var} = {val};"
                         elem.text = re.sub(pattern, replacement, elem.text, flags=re.MULTILINE)
+        
         # Save to temp file
         with tempfile.NamedTemporaryFile(mode='w', suffix=f'_var_{i}.xml', delete=False) as f:
             f.write(xml.tostring(tree).decode("UTF-8"))
-            temp_files.append(f.name)
-    
-    return temp_files
+            yield f.name, assignment, i
 
-def run_verifyta_single(model_file, query_file, seed, timeout):
-    """Run verifyta on a single model"""
+def run_verifyta_single(model_file, query_file, seed, timeout, var_id, assignment):
+    """Run verifyta on a single model and return result with metadata"""
     cmd = ["verifyta"]
     if seed != 0:
         cmd.extend(["--seed", str(seed)])
@@ -96,7 +109,6 @@ def run_verifyta_single(model_file, query_file, seed, timeout):
         # Parse output
         data_points = []
         formulas = []
-        # Formular index
         fidx = -1
 
         lines = result.stdout.split('\n')
@@ -140,22 +152,103 @@ def run_verifyta_single(model_file, query_file, seed, timeout):
             
             elif ' -- Formula is not satisfied' in line and formulas:
                 formulas[-1]['satisfied'] = False
-        #print("number of queries: " + len(data_points))
+        
         return {
             'success': result.returncode == 0,
             'stderr': result.stderr,
             'data_points': data_points,
             'formulas': formulas,
-            'return_code': result.returncode
+            'return_code': result.returncode,
+            'id': var_id,
+            'assignment': assignment
         }
     
     except subprocess.TimeoutExpired:
-        return {'success': False, 'error': 'Timeout'}
+        return {'success': False, 'error': 'Timeout', 'id': var_id, 'assignment': assignment}
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {'success': False, 'error': str(e), 'id': var_id, 'assignment': assignment}
 
-def run_verification_pipeline(model_file, query_file, assignments, seed=0, threads=4, timeout=None, progress_callback=None):
-    """Main pipeline to run all experiments"""
+def store_result_hdf5(h5file, result):
+    """Store a single result in HDF5 format"""
+    var_id = result['id']
+    assignment = result['assignment']
+    
+    var_group = h5file.create_group(f'variations/var_{var_id}')
+    
+    # Store assignment as attributes
+    for section, var, val in assignment:
+        var_group.attrs[f'param_{section}_{var}'] = val
+    
+    # Store basic results
+    var_group.attrs['success'] = result['success']
+    var_group.attrs['return_code'] = result.get('return_code', -1)
+    
+    if not result['success']:
+        if 'error' in result:
+            var_group.attrs['error'] = result['error']
+        if 'stderr' in result:
+            var_group.create_dataset('stderr', data=result['stderr'].encode())
+        return
+    
+    # Store formulas
+    if result.get('formulas'):
+        formulas_ds = var_group.create_dataset('formulas', 
+                                              shape=(len(result['formulas']),),
+                                              dtype=h5py.special_dtype(vlen=str))
+        for i, formula in enumerate(result['formulas']):
+            formulas_ds[i] = f"Formula {formula['number']}: {'SATISFIED' if formula['satisfied'] else 'NOT SATISFIED'}"
+    
+    # Store data points efficiently
+    if result.get('data_points'):
+        data_group = var_group.create_group('data_points')
+        
+        for formula_idx, formula_data in enumerate(result['data_points']):
+            formula_group = data_group.create_group(f'formula_{formula_idx}')
+            
+            for var_name, points in formula_data.items():
+                if points:
+                    # Convert to structured array for efficient storage
+                    dtype = np.dtype([('time', 'f8'), ('value', 'f8')])
+                    arr = np.array([(t, v) for t, v in points], dtype=dtype)
+                    
+                    # Store with compression
+                    formula_group.create_dataset(var_name, 
+                                                data=arr,
+                                                compression='gzip',
+                                                compression_opts=4)
+
+def result_writer(h5file, results_queue, h5lock, progress_callback, stop_event):
+    """Background thread that writes results to HDF5 as they arrive"""
+    processed_count = 0
+    while not stop_event.is_set() or not results_queue.empty():
+        try:
+            # Wait for result with timeout
+            result = results_queue.get(timeout=1.0)
+            if result is None:  # Sentinel value
+                break
+            
+            # Write to HDF5
+            with h5lock:
+                store_result_hdf5(h5file, result)
+                h5file.attrs['total_variations'] = processed_count + 1
+            
+            # Update progress
+            if progress_callback:
+                progress_callback(result, processed_count, None)
+            
+            processed_count += 1
+            results_queue.task_done()
+            
+        except Empty:
+            continue
+        except Exception as e:
+            print(f"Error in result writer: {e}")
+    
+    print(f"Result writer finished. Processed {processed_count} results.")
+
+def run_verification_pipeline(model_file, query_file, assignments, seed=0, threads=4, 
+                              timeout=None, hdf5_file=None, progress_callback=None):
+    """Main pipeline to run all experiments with HDF5 storage"""
     # Read model
     with open(model_file) as f:
         model_content = f.read()
@@ -163,56 +256,120 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
     if not assignments:
         return {}
     
-    print(f"Running {len(assignments)} variations...")
+    print("Running variations...")
     
-    # Create model variations
-    temp_files = generate_model_variations(model_content, assignments)
+    # Create HDF5 file
+    h5file = h5py.File(hdf5_file, 'w') if hdf5_file else None
+    h5lock = Lock() if hdf5_file else None
     
-    results = {}
+    if h5file:
+        # Create datasets structure
+        h5file.create_group('variations')
+        h5file.attrs['total_variations'] = 0
+        h5file.attrs['model_file'] = model_file
+        h5file.attrs['query_file'] = query_file
+    
+    # Queue for passing results from worker threads to writer thread
+    results_queue = Queue(maxsize=threads * 2)  # Limit queue size
+    
+    # Event to signal writer thread to stop
+    stop_event = None
+    
+    # Writer thread (if HDF5 is enabled)
+    writer_thread = None
+    if h5file:
+        stop_event = Event()
+        writer_thread = Thread(
+            target=result_writer,
+            args=(h5file, results_queue, h5lock, progress_callback, stop_event),
+            daemon=True
+        )
+        writer_thread.start()
+    
+    temp_files = []
+    total_submitted = 0
     
     try:
-        # Run in parallel
         with ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = {}
-            for i, (model_file, assignment) in enumerate(zip(temp_files, assignments)):
-                future = executor.submit(run_verifyta_single, model_file, query_file, seed, timeout)
-                futures[future] = (i, assignment)
+            # Submit all jobs, but don't store all futures
+            active_futures = set()
+            model_gen = generate_model_variations(model_content, assignments)
             
-            # Collect results
-            for i, future in enumerate(as_completed(futures)):
-                var_id, assignment = futures[future]
+            # Submit initial batch
+            for _ in range(threads * 2):
                 try:
-                    result = future.result(timeout=timeout)
-                    
-                    # Add assignment info
-                    result['variation_id'] = var_id
-                    result['assignment'] = assignment
-                    
-                    # Create summary
-                    satisfied = sum(1 for f in result.get('formulas', []) if f.get('satisfied'))
-                    result['summary'] = {
-                        'satisfied_formulas': [{
-                            'formula': f.get('number'),
-                            'satisfied': f.get('satisfied')
-                        } for f in result.get('formulas', [])],
-                        'satisfied_count': satisfied
-                    }
-                    
-                    results[f"variation_{var_id}"] = result
-                    
-                    # Update progress
-                    if progress_callback:
-                        progress_callback(i + 1, len(assignments))
-                    
-                except Exception as e:
-                    print(f"Error in variation {var_id}: {e}")
+                    temp_file, assignment, var_id = next(model_gen)
+                    future = executor.submit(
+                        run_verifyta_single, 
+                        temp_file, query_file, seed, timeout, var_id, assignment
+                    )
+                    active_futures.add(future)
+                    temp_files.append(temp_file)
+                    total_submitted += 1
+                except StopIteration:
+                    break
+            
+            # Process as they complete and submit new ones
+            while active_futures:
+                # Wait for any future to complete
+                done, _ = as_completed(active_futures), None
+                for future in done:
+                    try:
+                        result = future.result(timeout=timeout)
+                        
+                        # Put result in queue for writer (or process directly)
+                        if h5file:
+                            results_queue.put(result)
+                        else:
+                            # If no HDF5, process result directly
+                            if progress_callback:
+                                progress_callback(result, result['id'], None)
+                        
+                        # Remove from active futures (allows garbage collection)
+                        active_futures.remove(future)
+                        del future  # Explicitly delete reference
+                        
+                        # Submit new job if available
+                        try:
+                            temp_file, assignment, var_id = next(model_gen)
+                            future = executor.submit(
+                                run_verifyta_single, 
+                                temp_file, query_file, seed, timeout, var_id, assignment
+                            )
+                            active_futures.add(future)
+                            temp_files.append(temp_file)
+                            total_submitted += 1
+                        except StopIteration:
+                            pass
+                            
+                    except Exception as e:
+                        print(f"Error processing future: {e}")
+                        if future in active_futures:
+                            active_futures.remove(future)
         
-        return results
-    
+        # Signal writer thread to finish
+        if stop_event:
+            stop_event.set()
+            results_queue.put(None)  # Sentinel
+        
+        # Wait for writer to finish
+        if writer_thread:
+            writer_thread.join(timeout=5.0)
+            if writer_thread.is_alive():
+                print("Warning: Writer thread did not finish in time")
+        
+        print(f"Total variations submitted: {total_submitted}")
+        
     finally:
-        # Cleanup
+        # Cleanup temp files
         for f in temp_files:
             try:
                 os.unlink(f)
             except:
                 pass
+        
+        # Close HDF5 file
+        if h5file:
+            # Flush and close
+            h5file.flush()
+            h5file.close()
