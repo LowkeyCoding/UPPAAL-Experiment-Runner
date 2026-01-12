@@ -12,8 +12,8 @@ def get_var_val(group, section, name):
     """Get parameter value from HDF5 group attributes"""
     for attr_key in group.attrs:
         if attr_key.startswith('param_'):
-            parts = attr_key.split('_')
-            if len(parts) == 3 and parts[1] == section and parts[2] == name:
+            parts = attr_key.split('_',2)
+            if parts[1] == section and parts[2] == name:
                 return group.attrs[attr_key]
     return None
 
