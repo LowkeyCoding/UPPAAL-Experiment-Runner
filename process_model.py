@@ -244,7 +244,7 @@ def result_writer(h5file, results_queue, h5lock, progress_callback, stop_event):
     print(f"Result writer finished. Processed {processed_count} results.")
 
 def run_verification_pipeline(model_file, query_file, assignments, seed=0, threads=4, 
-                              timeout=None, hdf5_file=None, progress_callback=None, experiment = None):
+                              timeout=None, hdf5_file=None, progress_callback=None, experiment = None, queue_factor = 2):
     """Main pipeline to run all experiments with HDF5 storage"""
     # Read model
     with open(model_file) as f:
@@ -267,12 +267,12 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
         h5file.attrs['seed'] = seed
     
     # Queue for passing results from worker threads to writer thread
-    results_queue = Queue(maxsize=threads * 2)  # Limit queue size
+    results_queue = Queue(maxsize=threads * queue_factor)  # Limit queue size
     
     # Event to signal writer thread to stop
     stop_event = None
     
-    # Writer thread (if HDF5 is enabled)
+    # Writer thread
     writer_thread = None
     if h5file:
         stop_event = Event()
@@ -293,7 +293,7 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
             model_gen = generate_model_variations(model_content, assignments)
             
             # Submit initial batch
-            for _ in range(threads * 2):
+            for _ in range(threads * queue_factor):
                 try:
                     temp_file, assignment, var_id = next(model_gen)
                     future = executor.submit(
@@ -318,7 +318,7 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
                         if h5file:
                             results_queue.put(result)
                         
-                        # Remove from active futures (allows garbage collection)
+                        # Remove from active future
                         active_futures.remove(future)
                         del future  # Explicitly delete reference
                         

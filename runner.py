@@ -18,7 +18,6 @@ def get_var_val(group, section, name):
     return None
 
 def callback(var_id):
-    # Just print progress, HDF5 is updated in main function
     print(f"Completed variation {var_id}")
 
 def main(args):
@@ -61,11 +60,8 @@ def main(args):
                 for section, var_dict in globals["vars"].items():
                     vars_list[section] = [(var, val) for var, val in var_dict.items()]
             
-            # Get assignments as generator (not stored in memory)
+            # Get assignments as generator 
             assignments = process_model.generate_all_assignments(vars_list)
-            
-            # Count total assignments if needed for progress
-            # Note: This could be expensive for large combinations
             
             process_model.run_verification_pipeline(
                 globals["model"],
@@ -74,7 +70,9 @@ def main(args):
                 globals["seed"],
                 globals["threads"],
                 hdf5_file=str(hdf5_path),
-                progress_callback=callback, experiment=vars_list)
+                progress_callback=callback, 
+                experiment=vars_list,
+                queue_factor=4)
             
             print(f"Results saved to {hdf5_path}")
     
