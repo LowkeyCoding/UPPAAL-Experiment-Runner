@@ -220,8 +220,7 @@ def result_writer(h5file, results_queue, h5lock, progress_callback, stop_event):
     processed_count = 0
     while not stop_event.is_set() or not results_queue.empty():
         try:
-            # Wait for result with timeout
-            result = results_queue.get(timeout=1.0)
+            result = results_queue.get()
             if result is None:  # Sentinel value
                 break
             
@@ -232,7 +231,7 @@ def result_writer(h5file, results_queue, h5lock, progress_callback, stop_event):
             
             # Update progress
             if progress_callback:
-                progress_callback(processed_count)
+                progress_callback(result['id'])
             
             processed_count += 1
             results_queue.task_done()
@@ -250,7 +249,7 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
     # Read model
     with open(model_file) as f:
         model_content = f.read()
-    
+
     if not assignments:
         return {}
     print("Running variations...")
@@ -318,10 +317,6 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
                         # Put result in queue for writer (or process directly)
                         if h5file:
                             results_queue.put(result)
-                        else:
-                            # If no HDF5, process result directly
-                            if progress_callback:
-                                progress_callback(result['id'], len(assignments))
                         
                         # Remove from active futures (allows garbage collection)
                         active_futures.remove(future)
@@ -352,7 +347,7 @@ def run_verification_pipeline(model_file, query_file, assignments, seed=0, threa
         
         # Wait for writer to finish
         if writer_thread:
-            writer_thread.join(timeout=60.0)
+            writer_thread.join()
             if writer_thread.is_alive():
                 print("Warning: Writer thread did not finish in time")
         
