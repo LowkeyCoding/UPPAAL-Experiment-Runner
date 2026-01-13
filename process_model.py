@@ -11,47 +11,15 @@ from threading import Lock
 from queue import Queue, Empty
 from threading import Thread, Event
 
-def parse_variable_definition(var_def):
-    """Parse variable definition into list of values - handles both strings and lists"""
-    # If var_def is already a list, return it as is
-    if isinstance(var_def, list) or hasattr(var_def, '__iter__') and not isinstance(var_def, str):
-        # Convert to list and handle any nested strings
-        result = []
-        for item in var_def:
-            if isinstance(item, str):
-                result.append(item.strip())
-            else:
-                result.append(item)
-        return result
-    
-    # If it's a string, parse it
-    if 'range' in var_def:
-        try:
-            match = re.search(r'range\((\d+),\s*(\d+)(?:,\s*(\d+))?\)', var_def)
-            if match:
-                start = int(match.group(1))
-                end = int(match.group(2))
-                step = int(match.group(3)) if match.group(3) else 1
-                return list(range(start, end, step))
-        except:
-            return []
-    elif 'list' in var_def:
-        try:
-            match = re.search(r'list\((.*?)\)', var_def)
-            if match:
-                return [v.strip() for v in match.group(1).split(',')]
-        except:
-            pass
-
-    return [var_def]
-
 def generate_all_assignments(variables):
     """Generate all variable assignments as generator to avoid memory explosion"""
     options = []
     
     for section, var_list in variables.items():
         for var, val in var_list:
-            values = parse_variable_definition(val)
+            values = val
+            if type(values) != list:
+                values = [values]
             options.append([(section, var, v) for v in values])
     
     if not options:

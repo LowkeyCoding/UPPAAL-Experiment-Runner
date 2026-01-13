@@ -154,14 +154,7 @@ def get_assignments(vars):
     options = []
     for section, var_list in vars.items():
         for var, val in var_list.items():
-            if isinstance(val, str):
-                # Parse string definitions
-                parsed = process_model.parse_variable_definition(val)
-                options.append([(section, var, v) for v in parsed])
-            elif hasattr(val, '__iter__'):
-                options.append([(section, var, v) for v in val])
-            else:
-                options.append([(section, var, val)])
+            options.append([(section, var, v) for v in val])
     
     if not options:
         return []
