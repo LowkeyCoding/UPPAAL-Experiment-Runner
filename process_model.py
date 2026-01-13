@@ -93,7 +93,7 @@ def generate_model_variations(model_content, assignments):
         # Save to temp file
         with tempfile.NamedTemporaryFile(mode='w', suffix=f'_var_{i}.xml', delete=False) as f:
             f.write(xml.tostring(tree).decode("UTF-8"))
-            yield f.name, assignment, i
+        yield f.name, assignment, i
 
 def run_verifyta_single(model_file, query_file, seed, timeout, var_id, assignment):
     """Run verifyta on a single model and return result with metadata"""
