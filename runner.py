@@ -53,7 +53,10 @@ def main(args):
             Path(globals["experiment_data"]).mkdir(parents=True, exist_ok=True)
             
             hdf5_path = Path(globals["experiment_data"]) / "results.h5"
-            
+            if not args.force and hdf5_path.exists():
+               res = input("Overwrite existing experiment y/n: ")
+               if "n" in res:
+                   exit(1) 
             # Convert vars to list format expected by process_model
             vars_list = {}
             if globals["vars"]:
@@ -176,5 +179,7 @@ if __name__ == "__main__":
                        help="Plot results")
     parser.add_argument("--export", action='store_true',
                        help="Export plots to files")
+    parser.add_argument("--force", action='store_true',
+                       help="Force overwrites existing results file")
     args = parser.parse_args()
     main(args)
