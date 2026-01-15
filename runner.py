@@ -17,8 +17,8 @@ def get_var_val(group, section, name):
                 return group.attrs[attr_key]
     return None
 
-def callback(var_id):
-    print(f"Completed variation {var_id}")
+def callback(total):
+    return lambda var_id: print(f"Completed variation {var_id} / {total}")
 
 def main(args):
     globals = {
@@ -59,13 +59,17 @@ def main(args):
                    exit(1) 
             # Convert vars to list format expected by process_model
             vars_list = {}
+            count = 1
             if globals["vars"]:
                 for section, var_dict in globals["vars"].items():
                     vars_list[section] = [(var, val) for var, val in var_dict.items()]
-            
+                    for p in  vars_list[section]:
+                        if type(p[1]) == list:
+                            count *= len(p[1])
+
             # Get assignments as generator 
             assignments = process_model.generate_all_assignments(vars_list)
-            
+            print(f"Variation count: {count}")
             process_model.run_verification_pipeline(
                 globals["model"],
                 globals["queries"],
@@ -73,7 +77,7 @@ def main(args):
                 globals["seed"],
                 globals["threads"],
                 hdf5_file=str(hdf5_path),
-                progress_callback=callback, 
+                progress_callback=callback(count), 
                 experiment=vars_list,
                 queue_factor=4)
             
